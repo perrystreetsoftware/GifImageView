@@ -226,7 +226,10 @@ public class GifDecoder {
    * Move the animation frame counter forward.
    */
   void advance() {
-    framePointer = (framePointer + 1) % header.frameCount;
+    if (header.frameCount > 0) {
+      // avoid ArithmeticException: divide by zero error
+      framePointer = (framePointer + 1) % header.frameCount;
+    }
   }
 
   /**
