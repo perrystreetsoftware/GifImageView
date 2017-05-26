@@ -64,7 +64,7 @@ public class GifImageView extends ImageView implements Runnable {
     // the same. (There were slight but noticeable differences in the insets of bubbles)
     super.onDraw(canvas);
 
-    if (tmpBitmapFinished != null && !tmpBitmapFinished.isRecycled()) {
+    if (tmpBitmapFinished != null && !tmpBitmapFinished.isRecycled() && gifDecoder != null) {
       Bitmap bitmap = tmpBitmapFinished;
 
       if (frameCallback == null) {
@@ -213,50 +213,57 @@ public class GifImageView extends ImageView implements Runnable {
       return;
     }
 
-    final int n = gifDecoder.getFrameCount();
-    do {
-      for (int i = 0; i < n; i++) {
-        if (!animating) {
-          break;
-        }
-        //milliseconds spent on frame decode
-        long frameDecodeTime = 0;
-        try {
-          long before = System.nanoTime();
-          tmpBitmap = gifDecoder.getNextFrame();
-          frameDecodeTime = (System.nanoTime() - before) / 1000000;
-          if (frameCallback != null) {
-            tmpBitmap = frameCallback.onFrameAvailable(tmpBitmap);
-          }
-
+    try {
+      final int n = gifDecoder.getFrameCount();
+      do {
+        for (int i = 0; i < n; i++) {
           if (!animating) {
             break;
           }
+          //milliseconds spent on frame decode
+          long frameDecodeTime = 0;
+          try {
+            long before = System.nanoTime();
+            tmpBitmap = gifDecoder.getNextFrame();
+            frameDecodeTime = (System.nanoTime() - before) / 1000000;
+            if (frameCallback != null) {
+              tmpBitmap = frameCallback.onFrameAvailable(tmpBitmap);
+            }
 
-          tmpBitmapFinished = tmpBitmap;
-          handler.post(updateResults);
-        } catch (final ArrayIndexOutOfBoundsException | IllegalArgumentException e) {
-          Log.w(TAG, e);
-        }
-        if (!animating) {
-          break;
-        }
-        gifDecoder.advance();
-        try {
-          int delay = gifDecoder.getNextDelay();
-          // Sleep for frame duration minus time already spent on frame decode
-          // Actually we need next frame decode duration here,
-          // but I use previous frame time to make code more readable
-          delay -= frameDecodeTime;
-          if (delay > 0) {
-            Thread.sleep(framesDisplayDuration > 0 ? framesDisplayDuration : delay);
+            if (!animating) {
+              break;
+            }
+
+            tmpBitmapFinished = tmpBitmap;
+            handler.post(updateResults);
+          } catch (final ArrayIndexOutOfBoundsException | IllegalArgumentException e) {
+            Log.w(TAG, e);
           }
-        } catch (final Exception e) {
-          // suppress any exception
-          // it can be InterruptedException or IllegalArgumentException
+          if (!animating || gifDecoder == null) {
+            break;
+          }
+          try {
+            gifDecoder.advance();
+            int delay = gifDecoder.getNextDelay();
+            // Sleep for frame duration minus time already spent on frame decode
+            // Actually we need next frame decode duration here,
+            // but I use previous frame time to make code more readable
+            delay -= frameDecodeTime;
+            if (delay > 0) {
+              Thread.sleep(framesDisplayDuration > 0 ? framesDisplayDuration : delay);
+            }
+          } catch (final Exception e) {
+            // suppress any exception
+            // it can be InterruptedException or IllegalArgumentException
+          }
         }
+      } while (animating);
+    } catch (NullPointerException e) {
+      // We have null'd out the gifDecoder and are ending the animation
+      if (shouldClear) {
+        handler.post(cleanupRunnable);
       }
-    } while (animating);
+    }
   }
 
   public OnFrameAvailable getOnFrameAvailable() {
