@@ -64,6 +64,7 @@ public class GifImageView extends ImageView implements Runnable {
     // the same. (There were slight but noticeable differences in the insets of bubbles)
     super.onDraw(canvas);
 
+    try {
     if (tmpBitmapFinished != null && !tmpBitmapFinished.isRecycled() && gifDecoder != null) {
       Bitmap bitmap = tmpBitmapFinished;
 
@@ -82,6 +83,10 @@ public class GifImageView extends ImageView implements Runnable {
       int y = (getMeasuredHeight() - bitmap.getHeight()) / 2;
 
       canvas.drawBitmap(bitmap, x, y, null);
+    }
+    } catch (NullPointerException e) {
+      // sometimes gifDecoder is null when we do not expect it
+      Log.e(TAG, e.getMessage(), e);
     }
   }
 
